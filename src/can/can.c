@@ -2,9 +2,12 @@
 
 //Global variables
 volatile uint32_t CAN0ErrorFlags = 0;
+<<<<<<< HEAD
 
 volatile tCANMsgObject msgBlock[6];
 volatile uint8_t msgData[6][8];
+=======
+>>>>>>> 8380b1a52ee9ad9cf602093e27d865145477cd8d
 
 void CAN0_Init(uint32_t baud) {
   //Enable peripheral clocks
