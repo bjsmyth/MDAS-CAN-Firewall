@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "inc/tm4c123gh6pm.h"
+#include "inc/hw_memmap.h"
 #include "driverlib/sysctl.h"
 #include "driverlib/gpio.h"
 #include "driverlib/can.h"
@@ -10,12 +11,13 @@
 
 //Global variables
 char testBuffer[1024];
-int testVal;
+volatile int testVal;
 
 //Functions prototypes
 void PortFInit(void);
 void PLL_Init(void);
 void SysTick_Init(void);
+void SysTick_Wait1ms(unsigned long ms);
 
 
 int main(void)
@@ -24,9 +26,10 @@ int main(void)
     SysTick_Init();
     PortFInit();
     CAN0_Init(250000);
+    CAN1_Init(250000);
 
     testVal = 3;
-    //SEGGER_RTT_Init();
+    SEGGER_RTT_Init();
 
 
     testVal = SEGGER_RTT_ConfigUpBuffer(1, NULL, testBuffer, sizeof(testBuffer), SEGGER_RTT_MODE_NO_BLOCK_SKIP);
@@ -34,9 +37,23 @@ int main(void)
 
     testVal = SysCtlClockGet();
 
+    tCANMsgObject canMsg;
+    uint8_t testMsg[8] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
+
+    canMsg.ui32MsgID = 0xABC;
+    canMsg.ui32Flags = MSG_OBJ_NO_FLAGS;
+    canMsg.ui32MsgLen = 8;
+    canMsg.pui8MsgData = testMsg;
+
+    testVal = SysCtlClockGet();
     for(;;)
     {
-      SEGGER_RTT_printf(1,"Test!%i\n", testVal);
+      SEGGER_RTT_printf(1,"%d\n", testVal);
+
+      GPIO_PORTF_DATA_R ^= 0x04;
+      CANMessageSet(CAN0_BASE, 0, &canMsg, MSG_OBJ_TYPE_TX);
+
+      SysTick_Wait1ms(250);
     }
 }
 
@@ -87,4 +104,21 @@ void SysTick_Init(void)
     NVIC_ST_CURRENT_R = 0;  //Any write clears current
     //Enable SysTick with core clock, i.e. NVIC_ST_CTRL_R = 0x00000005
     NVIC_ST_CTRL_R = NVIC_ST_CTRL_ENABLE+NVIC_ST_CTRL_CLK_SRC;
+}
+
+//Uses SysTick to count down 1ms*(passed value)
+void SysTick_Wait1ms(unsigned long ms)
+{
+    //Clock is set to 80MHz, each Systick takes 1/80MHz = 12.5ns
+    //To get 1ms count down delay, take (1ms)/(12.5ns)
+    unsigned long delay = 80000;
+    unsigned long i;
+
+    for(i = 0; i < ms; i++)
+    {
+        NVIC_ST_RELOAD_R = delay - 1;   //Reload value is the number of counts to wait
+        NVIC_ST_CURRENT_R = 0;          //Clears current
+        //Bit 16 of STCTRL is set to 1 if SysTick timer counts down to zero
+        while((NVIC_ST_CTRL_R&0x00010000) == 0){}
+    }
 }
