@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 
 #include "driverlib/sysctl.h"
 #include "driverlib/gpio.h"
@@ -10,22 +11,29 @@
 #include "inc/hw_can.h"
 #include "inc/hw_ints.h"
 
-#ifndef _MDAS_CAN_H
-#define _MDAS_CAN_H
+#ifndef __MDAS_CAN_H__
+#define __MDAS_CAN_H__
 
 enum FromVehicle {
-  FROM_STEERING = 0,
-  FROM_BRAKE = 1,
-  FROM_THROTTLE = 2
+  FROM_STEERING = 1,
+  FROM_BRAKE = 2,
+  FROM_THROTTLE = 3
+};
+
+enum ToVehicle {
+  TO_STEERING = 4,
+  TO_BRAKE = 5,
+  TO_THROTTLE = 6,
 };
 
 //Initializers
 void CAN0_Init(uint32_t baud);
 void CAN1_Init(uint32_t baud);
 
+void CAN_Init_MsgObj();
+
 //Interrupt handlers
 void CAN0_IntHdlr();
-
-void CAN0_To_CAN1(tCANMsgObject toForward);
+void CAN1_IntHdlr();
 
 #endif //_MDAS_CAN_H

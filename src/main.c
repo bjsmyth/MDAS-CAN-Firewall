@@ -27,6 +27,9 @@ int main(void)
     PortFInit();
     CAN0_Init(250000);
     CAN1_Init(250000);
+    CAN_Init_MsgObj();
+
+    IntMasterEnable();
 
     testVal = 3;
     SEGGER_RTT_Init();
@@ -40,10 +43,11 @@ int main(void)
     tCANMsgObject canMsg;
     uint8_t testMsg[8] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
 
-    canMsg.ui32MsgID = 0xABC;
+    canMsg.ui32MsgID = 0xDEC;
     canMsg.ui32Flags = MSG_OBJ_NO_FLAGS;
     canMsg.ui32MsgLen = 8;
     canMsg.pui8MsgData = testMsg;
+    CANMessageSet(CAN0_BASE, TO_STEERING, &canMsg, MSG_OBJ_TYPE_TX);
 
     testVal = SysCtlClockGet();
     for(;;)
@@ -51,7 +55,6 @@ int main(void)
       SEGGER_RTT_printf(1,"%d\n", testVal);
 
       GPIO_PORTF_DATA_R ^= 0x04;
-      CANMessageSet(CAN0_BASE, 0, &canMsg, MSG_OBJ_TYPE_TX);
 
       SysTick_Wait1ms(250);
     }
