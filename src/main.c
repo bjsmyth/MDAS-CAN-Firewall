@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdbool.h>
+
 #include "inc/tm4c123gh6pm.h"
 #include "inc/hw_memmap.h"
 #include "driverlib/sysctl.h"
@@ -35,26 +36,26 @@ int main(void)
     SEGGER_RTT_Init();
 
 
-    testVal = SEGGER_RTT_ConfigUpBuffer(1, NULL, testBuffer, sizeof(testBuffer), SEGGER_RTT_MODE_NO_BLOCK_SKIP);
+    testVal = SEGGER_RTT_ConfigUpBuffer(1, "MDAS_Gateway", testBuffer, sizeof(testBuffer), SEGGER_RTT_MODE_NO_BLOCK_SKIP);
     SEGGER_RTT_WriteString(1, "SEGGER Real-Time-Terminal Sample\r\n\r\n");
 
     testVal = SysCtlClockGet();
 
-    tCANMsgObject canMsg;
+    /*tCANMsgObject canMsg;
     uint8_t testMsg[8] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
 
-    canMsg.ui32MsgID = 0xDEC;
-    canMsg.ui32Flags = MSG_OBJ_NO_FLAGS;
+    canMsg.ui32MsgID = 0x654;
+    canMsg.ui32Flags = MSG_OBJ_TX_INT_ENABLE;
     canMsg.ui32MsgLen = 8;
     canMsg.pui8MsgData = testMsg;
-    CANMessageSet(CAN0_BASE, TO_STEERING, &canMsg, MSG_OBJ_TYPE_TX);
+    CANMessageSet(CAN0_BASE, TO_STEERING, &canMsg, MSG_OBJ_TYPE_TX);*/
 
     testVal = SysCtlClockGet();
     for(;;)
     {
       SEGGER_RTT_printf(1,"%d\n", testVal);
 
-      GPIO_PORTF_DATA_R ^= 0x04;
+      //GPIO_PORTF_DATA_R ^= 0x04;
 
       SysTick_Wait1ms(250);
     }

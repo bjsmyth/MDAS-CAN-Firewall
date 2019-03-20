@@ -3,10 +3,10 @@
 //Global variables
 volatile uint32_t CAN0ErrorFlags = 0;
 
-static tCANMsgObject msgBlock[6];
-static uint8_t msgData[6][8];
+static tCANMsgObject msgBlock[7];
+static uint8_t msgData[7][8];
 
-static uint32_t canIDs[6] = {0x01, 0x2, 0x03, 0xDEC, 0x5, 0x6};
+static const uint32_t canIDs[6] = {0x01, 0x2, 0x03, 0xDEC, 0x5, 0x6};
 
 void CAN0_Init(uint32_t baud) {
   //Enable peripheral clocks
@@ -25,7 +25,7 @@ void CAN0_Init(uint32_t baud) {
 
 
   CANIntRegister(CAN0_BASE, &CAN0_IntHdlr);
-  CANIntEnable(CAN0_BASE, CAN_INT_MASTER | CAN_INT_ERROR | CAN_INT_STATUS);
+  CANIntEnable(CAN0_BASE, CAN_INT_MASTER | CAN_INT_STATUS);
   IntEnable(INT_CAN0);
   CANEnable(CAN0_BASE);
 }
@@ -50,15 +50,22 @@ void CAN1_Init(uint32_t baud) {
 }
 
 void CAN_Init_MsgObj() {
-    for(int i = 0; i < 6; i++) {
-      msgBlock[i].ui32MsgID = canIDs[i];
-      msgBlock[i].ui32MsgIDMask = 0;
+  //uint32_t canIDs[6] = {0x01, 0x2, 0x03, 0xDEC, 0x5, 0x6};
+    for(int i = 1; i < 7; i++) {
+      msgBlock[i].ui32MsgID = canIDs[i-1];
+      msgBlock[i].ui32MsgIDMask = ~(canIDs[i-1]);
       msgBlock[i].ui32MsgLen = 8;
       msgBlock[i].ui32Flags = MSG_OBJ_USE_ID_FILTER;
       msgBlock[i].pui8MsgData = msgData[i];
     }
 
-    for(int i = 0; i < 3; i++) {
+    msgBlock[1].ui32MsgID = canIDs[0];
+
+    for(int i = 1; i < 4; i++) {
+      msgBlock[i].ui32Flags |= MSG_OBJ_RX_INT_ENABLE;
+    }
+
+    for(int i = 1; i < 4; i++) {
       CANMessageSet(CAN0_BASE, i, &msgBlock[i], MSG_OBJ_TYPE_RX);
       CANMessageSet(CAN1_BASE, i+3, &msgBlock[i+3], MSG_OBJ_TYPE_RX);
     }
@@ -67,7 +74,7 @@ void CAN_Init_MsgObj() {
 void CAN0_IntHdlr() {
   uint32_t status = CANIntStatus(CAN0_BASE, CAN_INT_STS_CAUSE);
 
-  if(status == CAN_INT_INTID_STATUS) {
+  /*if(status == CAN_INT_INTID_STATUS) {
     CANIntClear(CAN0_BASE, CAN_INT_INTID_STATUS);
     status = CANStatusGet(CAN0_BASE, CAN_STS_CONTROL);
 
@@ -86,5 +93,41 @@ void CAN0_IntHdlr() {
     IntMasterEnable();
 
     CANMessageSet(CAN1_BASE, TO_STEERING, &msgBlock[TO_STEERING], MSG_OBJ_TYPE_TX);
+  }
+  else if(status == TO_STEERING) {
+    CANIntClear(CAN0_BASE, TO_STEERING);
+  }*/
+
+  uint32_t from, to;
+
+  switch (status) {
+    case CAN_INT_INTID_STATUS:
+      status = CANStatusGet(CAN0_BASE, CAN_STS_CONTROL);
+      CAN0ErrorFlags |= status;
+      CANIntClear(CAN0_BASE, CAN_INT_INTID_STATUS);
+      break;
+    case FROM_STEERING:
+    case FROM_THROTTLE:
+    case FROM_BRAKE:
+      from = status;
+      to = status + 3;
+
+      CANMessageGet(CAN0_BASE, from, &msgBlock[from], true);
+
+      IntMasterDisable();
+      memcpy(msgBlock[to].pui8MsgData, msgBlock[from].pui8MsgData, msgBlock[from].ui32MsgLen);
+      msgBlock[to].ui32MsgLen = msgBlock[from].ui32MsgLen;
+      IntMasterEnable();
+
+      CANMessageSet(CAN1_BASE, to, &msgBlock[to], MSG_OBJ_TYPE_TX);
+
+      CANIntClear(CAN0_BASE, from);
+      break;
+    case TO_STEERING:
+    case TO_THROTTLE:
+    case TO_BRAKE:
+      //Clear interrupt, may be used later
+      CANIntClear(CAN0_BASE, status);
+      break;
   }
 }
