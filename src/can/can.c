@@ -6,7 +6,7 @@ volatile uint32_t CAN0ErrorFlags = 0;
 static tCANMsgObject msgBlock[7];
 static uint8_t msgData[7][8];
 
-static const uint32_t canIDs[6] = {0x01, 0x2, 0x03, 0xDEC, 0x5, 0x6};
+static const uint32_t canIDs[6] = {0x1ADB0000, 0x011EEEEE, 0x013EEEEE, 0x1ADB0000, 0x011EEEEE, 0x013EEEEE};
 
 void CAN0_Init(uint32_t baud) {
   //Enable peripheral clocks
@@ -23,7 +23,7 @@ void CAN0_Init(uint32_t baud) {
   CANInit(CAN0_BASE);
   CANBitRateSet(CAN0_BASE, SysCtlClockGet(), baud);
 
-
+  //Configure CAN0 Interrupt
   CANIntRegister(CAN0_BASE, &CAN0_IntHdlr);
   CANIntEnable(CAN0_BASE, CAN_INT_MASTER | CAN_INT_STATUS);
   IntEnable(INT_CAN0);
@@ -44,18 +44,21 @@ void CAN1_Init(uint32_t baud) {
   //Configure and enable CAN1
   CANInit(CAN1_BASE);
   CANBitRateSet(CAN1_BASE, SysCtlClockGet(), baud);
+
+  //Configure CAN1 Interrupt
+  CANIntRegister(CAN1_BASE, &CAN1_IntHdlr);
+  CANIntEnable(CAN1_BASE, CAN_INT_MASTER | CAN_INT_STATUS);
+  IntEnable(INT_CAN1);
   CANEnable(CAN1_BASE);
-
-
 }
 
 void CAN_Init_MsgObj() {
   //uint32_t canIDs[6] = {0x01, 0x2, 0x03, 0xDEC, 0x5, 0x6};
     for(int i = 1; i < 7; i++) {
       msgBlock[i].ui32MsgID = canIDs[i-1];
-      msgBlock[i].ui32MsgIDMask = ~(canIDs[i-1]);
+      msgBlock[i].ui32MsgIDMask = 0x1FFFFFFF;
       msgBlock[i].ui32MsgLen = 8;
-      msgBlock[i].ui32Flags = MSG_OBJ_USE_ID_FILTER;
+      msgBlock[i].ui32Flags = MSG_OBJ_USE_ID_FILTER | MSG_OBJ_EXTENDED_ID;
       msgBlock[i].pui8MsgData = msgData[i];
     }
 
@@ -72,33 +75,10 @@ void CAN_Init_MsgObj() {
 }
 
 void CAN0_IntHdlr() {
+
   uint32_t status = CANIntStatus(CAN0_BASE, CAN_INT_STS_CAUSE);
 
-  /*if(status == CAN_INT_INTID_STATUS) {
-    CANIntClear(CAN0_BASE, CAN_INT_INTID_STATUS);
-    status = CANStatusGet(CAN0_BASE, CAN_STS_CONTROL);
-
-    CAN0ErrorFlags |= status;
-  }
-  else if(status == FROM_STEERING) {
-    CANIntClear(CAN0_BASE, FROM_STEERING);
-
-    //Get message from CAN0 registers
-    CANMessageGet(CAN0_BASE, FROM_STEERING, &msgBlock[FROM_STEERING], true);
-
-    //Disable interrupts, copy data from CAN0 to CAN1, reenable interrupts
-    IntMasterDisable();
-    memcpy(msgBlock[TO_STEERING].pui8MsgData, msgBlock[FROM_STEERING].pui8MsgData, msgBlock[FROM_STEERING].ui32MsgLen);
-    msgBlock[TO_STEERING].ui32MsgLen = msgBlock[FROM_STEERING].ui32MsgLen;
-    IntMasterEnable();
-
-    CANMessageSet(CAN1_BASE, TO_STEERING, &msgBlock[TO_STEERING], MSG_OBJ_TYPE_TX);
-  }
-  else if(status == TO_STEERING) {
-    CANIntClear(CAN0_BASE, TO_STEERING);
-  }*/
-
-  uint32_t from, to;
+  uint32_t vehicle, controller;
 
   switch (status) {
     case CAN_INT_INTID_STATUS:
@@ -106,28 +86,74 @@ void CAN0_IntHdlr() {
       CAN0ErrorFlags |= status;
       CANIntClear(CAN0_BASE, CAN_INT_INTID_STATUS);
       break;
-    case FROM_STEERING:
-    case FROM_THROTTLE:
-    case FROM_BRAKE:
-      from = status;
-      to = status + 3;
+    case VEHICLE_STEERING:
+    case VEHICLE_THROTTLE:
+    case VEHICLE_BRAKE:
+      GPIO_PORTF_DATA_R ^= 0x04;
+      vehicle = status;
+      controller = status + 3;
 
-      CANMessageGet(CAN0_BASE, from, &msgBlock[from], true);
+      CANMessageGet(CAN0_BASE, vehicle, &msgBlock[vehicle], true);
 
       IntMasterDisable();
-      memcpy(msgBlock[to].pui8MsgData, msgBlock[from].pui8MsgData, msgBlock[from].ui32MsgLen);
-      msgBlock[to].ui32MsgLen = msgBlock[from].ui32MsgLen;
+      memcpy(msgBlock[controller].pui8MsgData, msgBlock[vehicle].pui8MsgData, msgBlock[vehicle].ui32MsgLen);
+      msgBlock[controller].ui32MsgLen = msgBlock[vehicle].ui32MsgLen;
       IntMasterEnable();
 
-      CANMessageSet(CAN1_BASE, to, &msgBlock[to], MSG_OBJ_TYPE_TX);
+      CANMessageSet(CAN1_BASE, controller, &msgBlock[controller], MSG_OBJ_TYPE_TX);
 
-      CANIntClear(CAN0_BASE, from);
+      CANIntClear(CAN0_BASE, vehicle);
+
+      GPIO_PORTF_DATA_R ^= 0x04;
       break;
-    case TO_STEERING:
-    case TO_THROTTLE:
-    case TO_BRAKE:
+    case CONTROLLER_STEERING:
+    case CONTROLLER_THROTTLE:
+    case CONTROLLER_BRAKE:
       //Clear interrupt, may be used later
       CANIntClear(CAN0_BASE, status);
       break;
   }
+
+}
+
+void CAN1_IntHdlr() {
+  GPIO_PORTF_DATA_R ^= 0x08;
+
+  uint32_t status = CANIntStatus(CAN1_BASE, CAN_INT_STS_CAUSE);
+
+  uint32_t vehicle, controller;
+
+  switch (status) {
+    case CAN_INT_INTID_STATUS:
+      status = CANStatusGet(CAN1_BASE, CAN_STS_CONTROL);
+      CAN0ErrorFlags |= status;
+      CANIntClear(CAN1_BASE, CAN_INT_INTID_STATUS);
+      break;
+    case VEHICLE_STEERING:
+    case VEHICLE_THROTTLE:
+    case VEHICLE_BRAKE:
+      //Clear interrupt, may be used later
+      CANIntClear(CAN1_BASE, status);
+      break;
+    case CONTROLLER_STEERING:
+    case CONTROLLER_THROTTLE:
+    case CONTROLLER_BRAKE:
+      controller = status;
+      vehicle = status - 3;
+
+      CANMessageGet(CAN1_BASE, controller, &msgBlock[controller], true);
+
+      IntMasterDisable();
+      memcpy(msgBlock[vehicle].pui8MsgData, msgBlock[controller].pui8MsgData, msgBlock[controller].ui32MsgLen);
+      msgBlock[vehicle].ui32MsgLen = msgBlock[controller].ui32MsgLen;
+      IntMasterEnable();
+
+      CANMessageSet(CAN0_BASE, vehicle, &msgBlock[vehicle], MSG_OBJ_TYPE_TX);
+
+      CANIntClear(CAN1_BASE, controller);
+      break;
+
+  }
+  GPIO_PORTF_DATA_R ^= 0x08;
+
 }
