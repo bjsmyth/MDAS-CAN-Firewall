@@ -6,13 +6,11 @@
 #include "driverlib/sysctl.h"
 #include "driverlib/gpio.h"
 #include "driverlib/can.h"
-#include "SEGGER/SEGGER_RTT.h"
 
-#include "can/can.h"
+#include "can_gateway/can_gateway.h"
+#include "globals_macros/globals_macros.h"
 
 //Global variables
-char testBuffer[1024];
-volatile int testVal;
 
 //Functions prototypes
 void PortFInit(void);
@@ -33,24 +31,28 @@ int main(void)
 
     IntMasterEnable();
 
-    //SEGGER_RTT_Init();
-
-    //testVal = SEGGER_RTT_ConfigUpBuffer(1, "MDAS_Gateway", testBuffer, sizeof(testBuffer), SEGGER_RTT_MODE_NO_BLOCK_SKIP);
-    //SEGGER_RTT_WriteString(1, "SEGGER Real-Time-Terminal Sample\r\n\r\n");
-
     for(;;)
     {
-      //SEGGER_RTT_printf(1,"%d\n", testVal);
+        uint32_t can0Status = CANStatusGet(CAN0_BASE, CAN_STS_CONTROL);
+        uint32_t can1Status = CANStatusGet(CAN1_BASE, CAN_STS_CONTROL);
 
-      //GPIO_PORTF_DATA_R ^= 0x04;
-
+        if((can0Status & CAN_STATUS_EPASS) == CAN_STATUS_EPASS ||
+           (can1Status & CAN_STATUS_EPASS) == CAN_STATUS_EPASS) {
+          GPIO_PORTF_DATA_R |= LED_R;
+        }
+        else {
+          GPIO_PORTF_DATA_R &= ~LED_R;
+        }
     }
 }
 
 //Setup port F
 void PortFInit(void)
 {
-    __attribute__((unused)) volatile uint32_t delay; //Supress unused variable warning with attibute
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);
+    while(!SysCtlPeripheralReady(SYSCTL_PERIPH_GPIOF));
+    GPIOPinTypeGPIOOutput(GPIO_PORTF_BASE, LED_R | LED_G | LED_B);
+    /*__attribute__((unused)) volatile uint32_t delay; //Supress unused variable warning with attibute
     SYSCTL_RCGC2_R |= 0x00000020;   //F clock
     delay = SYSCTL_RCGC2_R;         //delay
     GPIO_PORTF_LOCK_R = 0x4C4F434B; //Unlock Port F
@@ -60,7 +62,7 @@ void PortFInit(void)
     GPIO_PORTF_DIR_R = 0x0E;        //PF2, PF1 output, PF4,PF0 input
     GPIO_PORTF_AFSEL_R = 0x00;      //Clear alt functions
     GPIO_PORTF_PUR_R |= 0x11;       //Enable pull-up resistor on PF4 and PF0
-    GPIO_PORTF_DEN_R |= 0x1F;       //Enable digital pin PF4, PF0 and PF3-1
+    GPIO_PORTF_DEN_R |= 0x1F;       //Enable digital pin PF4, PF0 and PF3-1*/
 }
 
 //Using the 400MHz PLL we get the bus frequency by dividing
@@ -109,6 +111,6 @@ void SysTick_Wait1ms(unsigned long ms)
         NVIC_ST_RELOAD_R = delay - 1;   //Reload value is the number of counts to wait
         NVIC_ST_CURRENT_R = 0;          //Clears current
         //Bit 16 of STCTRL is set to 1 if SysTick timer counts down to zero
-        while((NVIC_ST_CTRL_R&0x00010000) == 0){}
+        while((NVIC_ST_CTRL_R&0x00010000) == 0);
     }
 }
