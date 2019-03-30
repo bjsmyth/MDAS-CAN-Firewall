@@ -16,7 +16,7 @@ set(CMAKE_OBJDUMP ${TOOLCHAIN_PREFIX}-objdump)
 
 enable_language(ASM)
 
-set(OPT "")
+set(OPT " -Ofast")
 set(CPU "-mcpu=cortex-m4")
 set(FPU "-mfpu=fpv4-sp-d16 -mfloat-abi=hard")
 set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -mthumb ${CPU}  ${FPU} -MD")

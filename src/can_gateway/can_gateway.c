@@ -95,9 +95,9 @@ void CAN_Init_MsgObj() {
 }
 
 static void CAN0_IntHdlr() {
-  register uint32_t status = CANIntStatus(CAN0_BASE, CAN_INT_STS_CAUSE);
+  uint32_t status = CANIntStatus(CAN0_BASE, CAN_INT_STS_CAUSE);
 
-  register uint32_t vehicle_can0, controller_can1;
+  uint32_t vehicle_can0, controller_can1;
 
   switch (status) {
     /// Status interrupt currently not needed
@@ -143,9 +143,9 @@ static void CAN0_IntHdlr() {
 }
 
 static void CAN1_IntHdlr() {
-  register uint32_t status = CANIntStatus(CAN1_BASE, CAN_INT_STS_CAUSE);
+  uint32_t status = CANIntStatus(CAN1_BASE, CAN_INT_STS_CAUSE);
 
-  register uint32_t vehicle_can0, controller_can1;
+  uint32_t vehicle_can0, controller_can1;
 
   switch (status) {
     /// Status interrupt currently not needed
