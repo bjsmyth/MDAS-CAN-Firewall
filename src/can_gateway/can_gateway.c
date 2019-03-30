@@ -3,14 +3,14 @@
 //Global variables
 static tCANMsgObject msgBlock[9];
 static uint8_t msgData[8][8];
-static uint32_t can0TxQueue = 0, can1TxQueue = 0;
+static volatile uint32_t can0TxQueue = 0, can1TxQueue = 0;
 
 static const uint32_t conCanIDs[3] = {CONTROLLER_BRAKE_ID, CONTROLLER_STEERING_ID, CONTROLLER_THROTTLE_ID};
 
 //Local Functions
 //Interrupt handlers
-static void CAN0_IntHdlr();
-static void CAN1_IntHdlr();
+static void CAN0_IntHdlr() __attribute__((isr));
+static void CAN1_IntHdlr() __attribute__((isr));
 
 
 
@@ -33,7 +33,7 @@ void CAN0_Init(uint32_t baud) {
   //Configure CAN0 Interrupt
   CANIntRegister(CAN0_BASE, &CAN0_IntHdlr);
   CANIntEnable(CAN0_BASE, CAN_INT_MASTER);
-  IntPrioritySet(INT_CAN0, 1); //Controller to Vehicle must be higher priority
+  IntPrioritySet(INT_CAN0, 0x20); //Vehicle to controller must be lower priority
   IntEnable(INT_CAN0);
   CANEnable(CAN0_BASE);
 }
@@ -57,7 +57,7 @@ void CAN1_Init(uint32_t baud) {
   //Configure CAN1 Interrupt
   CANIntRegister(CAN1_BASE, &CAN1_IntHdlr);
   CANIntEnable(CAN1_BASE, CAN_INT_MASTER);
-  IntPrioritySet(INT_CAN1, 1); //Controller to Vehicle must be higher priority
+  IntPrioritySet(INT_CAN1, 0x00); //Controller to Vehicle must be higher priority
   IntEnable(INT_CAN1);
   CANEnable(CAN1_BASE);
 }
@@ -100,11 +100,12 @@ static void CAN0_IntHdlr() {
   register uint32_t vehicle_can0, controller_can1;
 
   switch (status) {
-    case CAN_INT_INTID_STATUS:
-      status = CANStatusGet(CAN0_BASE, CAN_STS_CONTROL);
-      g_can0ErrorFlags |= status;
-      CANIntClear(CAN0_BASE, CAN_INT_INTID_STATUS);
-      break;
+    /// Status interrupt currently not needed
+    //case CAN_INT_INTID_STATUS:
+    //  status = CANStatusGet(CAN0_BASE, CAN_STS_CONTROL);
+    //  g_can0ErrorFlags |= status;
+    //  CANIntClear(CAN0_BASE, CAN_INT_INTID_STATUS);
+    //  break;
     case CONTROLLER_STEERING:
     case CONTROLLER_THROTTLE:
     case CONTROLLER_BRAKE:
@@ -117,25 +118,27 @@ static void CAN0_IntHdlr() {
       }
 
       CANIntClear(CAN0_BASE, status);
-      break;
+      return;
     case VEHICLE_FEEDBACK:
       GPIO_PORTF_DATA_R |= LED_G;
       vehicle_can0 = status;
       controller_can1 = vehicle_can0 + 4;
 
-      CANMessageGet(CAN0_BASE, status, &msgBlock[vehicle_can0], true);
-
       IntMasterDisable();
+      CANMessageGet(CAN0_BASE, status, &msgBlock[vehicle_can0], true);
+      IntMasterEnable();
+
       memcpy(msgBlock[controller_can1].pui8MsgData, msgBlock[vehicle_can0].pui8MsgData, msgBlock[vehicle_can0].ui32MsgLen);
       msgBlock[controller_can1].ui32MsgLen = msgBlock[vehicle_can0].ui32MsgLen;
 
+      //Queue up message transmission
+      can1TxQueue++;
+      IntMasterDisable();
       CANMessageSet(CAN1_BASE, status, &msgBlock[controller_can1], MSG_OBJ_TYPE_TX);
       IntMasterEnable();
 
       CANIntClear(CAN0_BASE, status);
-
-      can1TxQueue++;
-      break;
+      return;
   }
 }
 
@@ -145,11 +148,12 @@ static void CAN1_IntHdlr() {
   register uint32_t vehicle_can0, controller_can1;
 
   switch (status) {
-    case CAN_INT_INTID_STATUS:
-      status = CANStatusGet(CAN1_BASE, CAN_STS_CONTROL);
-      g_can1ErrorFlags |= status;
-      CANIntClear(CAN1_BASE, CAN_INT_INTID_STATUS);
-      break;
+    /// Status interrupt currently not needed
+    //case CAN_INT_INTID_STATUS:
+    //  status = CANStatusGet(CAN1_BASE, CAN_STS_CONTROL);
+    //  g_can1ErrorFlags |= status;
+    //  CANIntClear(CAN1_BASE, CAN_INT_INTID_STATUS);
+    //  break;
     case CONTROLLER_STEERING:
     case CONTROLLER_THROTTLE:
     case CONTROLLER_BRAKE:
@@ -158,19 +162,21 @@ static void CAN1_IntHdlr() {
       vehicle_can0 = status;
       controller_can1 = vehicle_can0 + 4;
 
-      CANMessageGet(CAN1_BASE, status, &msgBlock[controller_can1], true);
-
       IntMasterDisable();
+      CANMessageGet(CAN1_BASE, status, &msgBlock[controller_can1], true);
+      IntMasterEnable();
+
       memcpy(msgBlock[vehicle_can0].pui8MsgData, msgBlock[controller_can1].pui8MsgData, msgBlock[controller_can1].ui32MsgLen);
       msgBlock[vehicle_can0].ui32MsgLen = msgBlock[controller_can1].ui32MsgLen;
 
+      //Queue up message transmission
+      can0TxQueue++;
+      IntMasterDisable();
       CANMessageSet(CAN0_BASE, status, &msgBlock[vehicle_can0], MSG_OBJ_TYPE_TX);
       IntMasterEnable();
 
       CANIntClear(CAN1_BASE, status);
-
-      can0TxQueue++;
-      break;
+      return;
     case VEHICLE_FEEDBACK:
       can1TxQueue--;
       if(can1TxQueue == UINT32_MAX) {
@@ -181,6 +187,6 @@ static void CAN1_IntHdlr() {
       }
 
       CANIntClear(CAN1_BASE, status);
-      break;
+      return;
   }
 }
