@@ -94,18 +94,11 @@ void CAN_Init_MsgObj() {
 }
 
 static void CAN0_IntHdlr() {
-  GPIO_PORTD_DATA_R |= GPIO_PIN_6; //Raise pin during int run to measure time
   uint32_t status = CANIntStatus(CAN0_BASE, CAN_INT_STS_CAUSE);
 
   uint32_t vehicle_can0, controller_can1;
 
   switch (status) {
-    /// Status interrupt currently not needed
-    //case CAN_INT_INTID_STATUS:
-    //  status = CANStatusGet(CAN0_BASE, CAN_STS_CONTROL);
-    //  g_can0ErrorFlags |= status;
-    //  CANIntClear(CAN0_BASE, CAN_INT_INTID_STATUS);
-    //  break;
     case CONTROLLER_STEERING:
     case CONTROLLER_THROTTLE:
     case CONTROLLER_BRAKE:
@@ -140,23 +133,14 @@ static void CAN0_IntHdlr() {
       CANIntClear(CAN0_BASE, status);
       break;
   }
-
-  GPIO_PORTD_DATA_R &= ~GPIO_PIN_6;
 }
 
 static void CAN1_IntHdlr() {
-  GPIO_PORTD_DATA_R |= GPIO_PIN_7; //Raise pin during int run to measure time
   uint32_t status = CANIntStatus(CAN1_BASE, CAN_INT_STS_CAUSE);
 
   uint32_t vehicle_can0, controller_can1;
 
   switch (status) {
-    /// Status interrupt currently not needed
-    //case CAN_INT_INTID_STATUS:
-    //  status = CANStatusGet(CAN1_BASE, CAN_STS_CONTROL);
-    //  g_can1ErrorFlags |= status;
-    //  CANIntClear(CAN1_BASE, CAN_INT_INTID_STATUS);
-    //  break;
     case CONTROLLER_STEERING:
     case CONTROLLER_THROTTLE:
     case CONTROLLER_BRAKE:
@@ -192,6 +176,4 @@ static void CAN1_IntHdlr() {
       CANIntClear(CAN1_BASE, status);
       break;
   }
-
-  GPIO_PORTD_DATA_R &= ~GPIO_PIN_7;
 }
