@@ -3,7 +3,6 @@
 //Global variables
 static tCANMsgObject msgBlock[9];
 static uint8_t msgData[8][8];
-static volatile uint32_t can0TxQueue = 0, can1TxQueue = 0;
 
 static const uint32_t conCanIDs[3] = {CONTROLLER_BRAKE_ID, CONTROLLER_STEERING_ID, CONTROLLER_THROTTLE_ID};
 
@@ -95,6 +94,7 @@ void CAN_Init_MsgObj() {
 }
 
 static void CAN0_IntHdlr() {
+  GPIO_PORTD_DATA_R |= GPIO_PIN_6; //Raise pin during int run to measure time
   uint32_t status = CANIntStatus(CAN0_BASE, CAN_INT_STS_CAUSE);
 
   uint32_t vehicle_can0, controller_can1;
@@ -109,16 +109,16 @@ static void CAN0_IntHdlr() {
     case CONTROLLER_STEERING:
     case CONTROLLER_THROTTLE:
     case CONTROLLER_BRAKE:
-      can0TxQueue--;
-      if(can0TxQueue == UINT32_MAX) {
-        can0TxQueue = 0; //Reset underflow
+      g_can0TxQueue--;
+      if(g_can0TxQueue == UINT32_MAX) {
+        g_can0TxQueue = 0; //Reset underflow
       }
-      if(can0TxQueue == 0) {
+      if(g_can0TxQueue == 0) {
         GPIO_PORTF_DATA_R &= ~LED_B;
       }
 
       CANIntClear(CAN0_BASE, status);
-      return;
+      break;
     case VEHICLE_FEEDBACK:
       GPIO_PORTF_DATA_R |= LED_G;
       vehicle_can0 = status;
@@ -132,17 +132,20 @@ static void CAN0_IntHdlr() {
       msgBlock[controller_can1].ui32MsgLen = msgBlock[vehicle_can0].ui32MsgLen;
 
       //Queue up message transmission
-      can1TxQueue++;
+      g_can1TxQueue++;
       IntMasterDisable();
       CANMessageSet(CAN1_BASE, status, &msgBlock[controller_can1], MSG_OBJ_TYPE_TX);
       IntMasterEnable();
 
       CANIntClear(CAN0_BASE, status);
-      return;
+      break;
   }
+
+  GPIO_PORTD_DATA_R &= ~GPIO_PIN_6;
 }
 
 static void CAN1_IntHdlr() {
+  GPIO_PORTD_DATA_R |= GPIO_PIN_7; //Raise pin during int run to measure time
   uint32_t status = CANIntStatus(CAN1_BASE, CAN_INT_STS_CAUSE);
 
   uint32_t vehicle_can0, controller_can1;
@@ -170,23 +173,25 @@ static void CAN1_IntHdlr() {
       msgBlock[vehicle_can0].ui32MsgLen = msgBlock[controller_can1].ui32MsgLen;
 
       //Queue up message transmission
-      can0TxQueue++;
+      g_can0TxQueue++;
       IntMasterDisable();
       CANMessageSet(CAN0_BASE, status, &msgBlock[vehicle_can0], MSG_OBJ_TYPE_TX);
       IntMasterEnable();
 
       CANIntClear(CAN1_BASE, status);
-      return;
+      break;
     case VEHICLE_FEEDBACK:
-      can1TxQueue--;
-      if(can1TxQueue == UINT32_MAX) {
-        can1TxQueue = 0; //Reset underflow
+      g_can1TxQueue--;
+      if(g_can1TxQueue == UINT32_MAX) {
+        g_can1TxQueue = 0; //Reset underflow
       }
-      if(can1TxQueue == 0) {
+      if(g_can1TxQueue == 0) {
         GPIO_PORTF_DATA_R &= ~LED_G;
       }
 
       CANIntClear(CAN1_BASE, status);
-      return;
+      break;
   }
+
+  GPIO_PORTD_DATA_R &= ~GPIO_PIN_7;
 }

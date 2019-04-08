@@ -42,11 +42,11 @@ static void IntDefaultHandler(void);
 // The entry point for the application.
 //
 //*****************************************************************************
-extern int main(void);
+extern int main(void) __attribute__((noreturn));
 
 //*****************************************************************************
 //
-// Reserve space for the system stack.
+// Reserve space for the system stack. 1 kB.
 //
 //*****************************************************************************
 static uint32_t pui32Stack[256];

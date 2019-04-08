@@ -9,6 +9,6 @@
 #define LED_G (GPIO_PIN_2)
 #define LED_B (GPIO_PIN_3)
 
-extern volatile uint32_t g_can0ErrorFlags, g_can1ErrorFlags;
+extern volatile uint32_t g_can0TxQueue, g_can1TxQueue;
 
 #endif

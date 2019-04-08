@@ -16,11 +16,11 @@ set(CMAKE_OBJDUMP ${TOOLCHAIN_PREFIX}-objdump)
 
 enable_language(ASM)
 
-set(OPT " -Ofast")
+set(OPT "-Ofast")
 set(CPU "-mcpu=cortex-m4")
 set(FPU "-mfpu=fpv4-sp-d16 -mfloat-abi=hard")
 set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -mthumb ${CPU}  ${FPU} -MD")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mthumb ${CPU} ${FPU} -std=gnu99 ${OPT} -ffunction-sections -fdata-sections -MD -Wall -pedantic")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mthumb ${CPU} ${FPU} -std=c11 ${OPT} -ffunction-sections -fdata-sections -MD -Wall -pedantic")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mthumb ${CPU} ${FPU}  ${OPT} -ffunction-sections -fdata-sections -MD -Wall -pedantic -fno-exceptions -fno-rtti")
 
 set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
